@@ -22,11 +22,11 @@ import os
 import signal
 import errno
 
-import pidlockfile
+from . import pidlockfile
 
-from daemon import DaemonContext
+from .daemon import DaemonContext
 
-
+
 class DaemonRunnerError(Exception):
     """ Abstract base class for errors from DaemonRunner. """
 
@@ -39,7 +39,7 @@ class DaemonRunnerStartFailureError(RuntimeError, DaemonRunnerError):
 class DaemonRunnerStopFailureError(RuntimeError, DaemonRunnerError):
     """ Raised when failure stopping DaemonRunner. """
 
-
+
 class DaemonRunner(object):
     """ Controller for a callable running in a separate background process.
 
@@ -71,7 +71,7 @@ class DaemonRunner(object):
 
             * `run`: Callable that will be invoked when the daemon is
               started.
-            
+
             """
         self.parse_args()
         self.app = app
@@ -136,7 +136,7 @@ class DaemonRunner(object):
         pid = self.pidfile.read_pid()
         try:
             os.kill(pid, signal.SIGTERM)
-        except OSError, exc:
+        except OSError as exc:
             raise DaemonRunnerStopFailureError(
                 "Failed to terminate %(pid)d: %(exc)s" % vars())
 
@@ -196,7 +196,7 @@ def emit_message(message, stream=None):
 
 def make_pidlockfile(path, acquire_timeout):
     """ Make a PIDLockFile instance with the given filesystem path. """
-    if not isinstance(path, basestring):
+    if not isinstance(path, str):
         error = ValueError("Not a filesystem path: %(path)r" % vars())
         raise error
     if not os.path.isabs(path):
@@ -221,7 +221,7 @@ def is_pidfile_stale(pidfile):
     if pidfile_pid is not None:
         try:
             os.kill(pidfile_pid, signal.SIG_DFL)
-        except OSError, exc:
+        except OSError as exc:
             if exc.errno == errno.ESRCH:
                 # The specified PID does not exist
                 result = True

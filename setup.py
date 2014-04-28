@@ -27,7 +27,7 @@ short_description, long_description = (
     for d in main_module.__doc__.split(u'\n\n', 1)
     )
 
-
+
 setup(
     name=distribution_name,
     version=version.version,
@@ -41,7 +41,7 @@ setup(
         ],
     install_requires=[
         "setuptools",
-        "lockfile >=0.7",
+        "lockfile >=0.7, <0.9",
         ],
 
     # PyPI metadata

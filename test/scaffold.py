@@ -24,6 +24,8 @@ from minimock import (
     mock,
     restore as mock_restore,
     )
+from inspect import signature
+from functools import reduce
 
 test_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(test_dir)
@@ -35,7 +37,7 @@ if not parent_dir in sys.path:
 # Disable all but the most critical logging messages
 logging.disable(logging.CRITICAL)
 
-
+
 def get_python_module_names(file_list, file_suffix='.py'):
     """ Return a list of module names from a filename list. """
     module_names = [m[:m.rfind(file_suffix)] for m in file_list
@@ -59,35 +61,30 @@ def make_suite(path=test_dir):
 
     return suite
 
-
+
 def get_function_signature(func):
     """ Get the function signature as a mapping of attributes. """
-    arg_count = func.func_code.co_argcount
-    arg_names = func.func_code.co_varnames[:arg_count]
-
-    arg_defaults = {}
-    func_defaults = ()
-    if func.func_defaults is not None:
-        func_defaults = func.func_defaults
-    for (name, value) in zip(arg_names[::-1], func_defaults[::-1]):
-        arg_defaults[name] = value
-
-    signature = {
+    signature_ = {
         'name': func.__name__,
-        'arg_count': arg_count,
-        'arg_names': arg_names,
-        'arg_defaults': arg_defaults,
+        'arg_count': 0,
+        'arg_names': [], # return tuple
+        'arg_defaults': {},
         }
 
-    non_pos_names = list(func.func_code.co_varnames[arg_count:])
-    COLLECTS_ARBITRARY_POSITIONAL_ARGS = 0x04
-    if func.func_code.co_flags & COLLECTS_ARBITRARY_POSITIONAL_ARGS:
-        signature['var_args'] = non_pos_names.pop(0)
-    COLLECTS_ARBITRARY_KEYWORD_ARGS = 0x08
-    if func.func_code.co_flags & COLLECTS_ARBITRARY_KEYWORD_ARGS:
-        signature['var_kw_args'] = non_pos_names.pop(0)
+    for name, param in signature(func).parameters.items():
+        if param.kind == param.VAR_POSITIONAL:
+            signature_['var_args'] = name
+        elif param.kind == param.VAR_KEYWORD:
+            signature_['var_kw_args'] = name
+        else:
+            signature_['arg_count'] += 1
+            signature_['arg_names'].append(name)
+            if param.default != param.empty:
+                signature_['arg_defaults'][name] = param.default
 
-    return signature
+    signature_['arg_names'] = tuple(signature_['arg_names'])
+
+    return signature_
 
 
 def format_function_signature(func):
@@ -114,83 +111,9 @@ def format_function_signature(func):
 
     return signature_text
 
-
+
 class TestCase(unittest.TestCase):
     """ Test case behaviour. """
-
-    def failUnlessRaises(self, exc_class, func, *args, **kwargs):
-        """ Fail unless the function call raises the expected exception.
-
-            Fail the test if an instance of the exception class
-            ``exc_class`` is not raised when calling ``func`` with the
-            arguments ``*args`` and ``**kwargs``.
-
-            """
-        try:
-            super(TestCase, self).failUnlessRaises(
-                exc_class, func, *args, **kwargs)
-        except self.failureException:
-            exc_class_name = exc_class.__name__
-            msg = (
-                "Exception %(exc_class_name)s not raised"
-                " for function call:"
-                " func=%(func)r args=%(args)r kwargs=%(kwargs)r"
-                ) % vars()
-            raise self.failureException(msg)
-
-    def failIfIs(self, first, second, msg=None):
-        """ Fail if the two objects are identical.
-
-            Fail the test if ``first`` and ``second`` are identical,
-            as determined by the ``is`` operator.
-
-            """
-        if first is second:
-            if msg is None:
-                msg = "%(first)r is %(second)r" % vars()
-            raise self.failureException(msg)
-
-    def failUnlessIs(self, first, second, msg=None):
-        """ Fail unless the two objects are identical.
-
-            Fail the test unless ``first`` and ``second`` are
-            identical, as determined by the ``is`` operator.
-
-            """
-        if first is not second:
-            if msg is None:
-                msg = "%(first)r is not %(second)r" % vars()
-            raise self.failureException(msg)
-
-    assertIs = failUnlessIs
-    assertNotIs = failIfIs
-
-    def failIfIn(self, first, second, msg=None):
-        """ Fail if the second object is in the first.
-
-            Fail the test if ``first`` contains ``second``, as
-            determined by the ``in`` operator.
-
-            """
-        if second in first:
-            if msg is None:
-                msg = "%(second)r is in %(first)r" % vars()
-            raise self.failureException(msg)
-
-    def failUnlessIn(self, first, second, msg=None):
-        """ Fail unless the second object is in the first.
-
-            Fail the test unless ``first`` contains ``second``, as
-            determined by the ``in`` operator.
-
-            """
-        if second not in first:
-            if msg is None:
-                msg = "%(second)r is not in %(first)r" % vars()
-            raise self.failureException(msg)
-
-    assertIn = failUnlessIn
-    assertNotIn = failIfIn
 
     def failUnlessOutputCheckerMatch(self, want, got, msg=None):
         """ Fail unless the specified string matches the expected.
@@ -264,37 +187,6 @@ class TestCase(unittest.TestCase):
     assertMockCheckerMatch = failUnlessMockCheckerMatch
     assertNotMockCheckerMatch = failIfMockCheckerMatch
 
-    def failIfIsInstance(self, obj, classes, msg=None):
-        """ Fail if the object is an instance of the specified classes.
-
-            Fail the test if the object ``obj`` is an instance of any
-            of ``classes``.
-
-            """
-        if isinstance(obj, classes):
-            if msg is None:
-                msg = (
-                    "%(obj)r is an instance of one of %(classes)r"
-                    ) % vars()
-            raise self.failureException(msg)
-
-    def failUnlessIsInstance(self, obj, classes, msg=None):
-        """ Fail unless the object is an instance of the specified classes.
-
-            Fail the test unless the object ``obj`` is an instance of
-            any of ``classes``.
-
-            """
-        if not isinstance(obj, classes):
-            if msg is None:
-                msg = (
-                    "%(obj)r is not an instance of any of %(classes)r"
-                    ) % vars()
-            raise self.failureException(msg)
-
-    assertIsInstance = failUnlessIsInstance
-    assertNotIsInstance = failIfIsInstance
-
     def failUnlessFunctionInTraceback(self, traceback, function, msg=None):
         """ Fail if the function is not in the traceback.
 
@@ -362,7 +254,7 @@ class TestCase(unittest.TestCase):
 
     assertFunctionSignatureMatch = failUnlessFunctionSignatureMatch
 
-
+
 class Exception_TestCase(TestCase):
     """ Test cases for exception classes. """
 
@@ -385,7 +277,7 @@ class Exception_TestCase(TestCase):
         """ Exception instance should be created. """
         for params in self.valid_exceptions.values():
             instance = params['instance']
-            self.failIfIs(None, instance)
+            self.assertIsNotNone(instance)
 
     def test_exception_types(self):
         """ Exception instances should match expected types. """
@@ -397,6 +289,4 @@ class Exception_TestCase(TestCase):
                     "%(instance)r is not an instance of"
                     " %(match_type_name)s"
                     ) % vars()
-                self.failUnless(
-                    isinstance(instance, match_type),
-                    msg=fail_msg)
+                self.assertIsInstance(instance, match_type, msg=fail_msg)
