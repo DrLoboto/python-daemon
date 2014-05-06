@@ -32,6 +32,6 @@ Platform: UNKNOWN
 Classifier: Development Status :: 4 - Beta
 Classifier: License :: OSI Approved :: Python Software Foundation License
 Classifier: Operating System :: POSIX
-Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.3
 Classifier: Intended Audience :: Developers
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
